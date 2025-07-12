@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Circle Clash</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #e0f7fa, #ffe0f0);
+      text-align: center;
+      padding: 20px;
+      transition: background 0.4s, color 0.4s;
+      position: relative;
+      min-height: 100vh;
+      color: #333;
+    }
+
+    .dark {
+      background: linear-gradient(135deg, #1f1c2c, #928dab);
+      color: #f0f0f0;
+    }
+
+    .theme-toggle {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      font-size: 2rem;
+      cursor: pointer;
+    }
+
+    .heading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 1.8em;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+
+    .heading i {
+      font-size: 1.6em;
+      color: #ff4081;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(3, 100px);
+      gap: 15px;
+      justify-content: center;
+      margin: 30px auto;
+    }
+
+    .cell {
+      width: 100px;
+      height: 100px;
+      font-size: 2em;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, #fff 40%, #c3e6ff);
+      border-radius: 50%;
+      border: none;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.3s;
+    }
+
+    .cell:hover {
+      transform: scale(1.1);
+    }
+
+    .dark .cell {
+      background: radial-gradient(circle, #34495e, #2c3e50);
+      color: #ffffff;
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
+    }
+
+    .cell.winner {
+      background-color: #32cd32 !important;
+      color: white;
+    }
+
+    .status, .scoreboard {
+      font-size: 1.2em;
+      margin: 10px 0;
+    }
+
+    .restart {
+      padding: 10px 20px;
+      margin-top: 10px;
+      font-size: 1em;
+      cursor: pointer;
+      background: #0077cc;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      transition: background 0.3s;
+    }
+
+    .restart:hover {
+      background: #005fa3;
+    }
+
+    input[type="radio"] {
+      margin-right: 6px;
+    }
+
+    @media (max-width: 600px) {
+      .board {
+        grid-template-columns: repeat(3, 80px);
+        gap: 10px;
+      }
+
+      .cell {
+        width: 80px;
+        height: 80px;
+        font-size: 1.6em;
+      }
+
+      .heading {
+        font-size: 1.5em;
+      }
+
+      .theme-toggle {
+        font-size: 1.5rem;
+        top: 10px;
+        right: 15px;
+      }
+
+      .restart {
+        font-size: 0.9em;
+        padding: 8px 16px;
+      }
+
+      .status, .scoreboard {
+        font-size: 1em;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="theme-toggle" id="themeToggle"><i class="fas fa-moon"></i></div>
+
+  <div class="heading">
+    <i class="fas fa-gamepad"></i>
+    <h1>Circle Clash</h1>
+  </div>
+
+  <div>
+    <label><input type="radio" name="mode" value="pvp" checked /> 🎈 Bubble vs 🧊 Frost</label>
+    <label style="margin-left: 15px;"><input type="radio" name="mode" value="pvc" /> 🎈 Bubble vs 🤖 Bot</label>
+  </div>
+
+  <div class="board" id="board"></div>
+  <div class="status" id="status">🎈 Bubble's turn</div>
+
+  <div class="scoreboard" id="scoreboard">
+    🎈 Bubble: <span id="scoreX">0</span> |
+    🧊 Frost: <span id="scoreO">0</span> |
+    💥 Stalemates: <span id="scoreDraws">0</span>
+  </div>
+
+  <button class="restart" onclick="startGame()">Restart</button>
+
+  <script>
+    const boardEl = document.getElementById("board");
+    const statusEl = document.getElementById("status");
+    const scoreXEl = document.getElementById("scoreX");
+    const scoreOEl = document.getElementById("scoreO");
+    const scoreDrawsEl = document.getElementById("scoreDraws");
+    const themeToggle = document.getElementById("themeToggle");
+
+    let board, currentPlayer, gameOver, mode;
+    let scores = { X: 0, O: 0, draws: 0 };
+    let isDark = false;
+
+    const winningCombos = [
+      [0,1,2], [3,4,5], [6,7,8],
+      [0,3,6], [1,4,7], [2,5,8],
+      [0,4,8], [2,4,6]
+    ];
+
+    document.querySelectorAll('input[name="mode"]').forEach(input => {
+      input.addEventListener("change", startGame);
+    });
+
+    function startGame() {
+      board = Array(9).fill("");
+      currentPlayer = "X";
+      gameOver = false;
+      mode = document.querySelector('input[name="mode"]:checked').value;
+      statusEl.textContent = `🎈 Bubble's turn`;
+      renderBoard();
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = "";
+      board.forEach((cell, i) => {
+        const cellEl = document.createElement("div");
+        cellEl.className = "cell";
+        cellEl.textContent = cell;
+        cellEl.addEventListener("click", () => handleClick(i));
+        boardEl.appendChild(cellEl);
+      });
+    }
+
+    function handleClick(index) {
+      if (gameOver || board[index]) return;
+
+      board[index] = currentPlayer;
+      renderBoard();
+      if (checkWinner()) return;
+
+      currentPlayer = currentPlayer === "X" ? "O" : "X";
+      statusEl.textContent = currentPlayer === "X" ? `🎈 Bubble's turn` : (mode === "pvc" ? `🤖 Bot's turn` : `🧊 Frost's turn`);
+
+      if (!gameOver && mode === "pvc" && currentPlayer === "O") {
+        setTimeout(() => {
+          const move = getBestMove();
+          board[move] = "O";
+          renderBoard();
+          checkWinner();
+          if (!gameOver) {
+            currentPlayer = "X";
+            statusEl.textContent = `🎈 Bubble's turn`;
+          }
+        }, 500);
+      }
+    }
+
+    function checkWinner() {
+      const cells = document.querySelectorAll(".cell");
+
+      for (const [a, b, c] of winningCombos) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+          cells[a].classList.add("winner");
+          cells[b].classList.add("winner");
+          cells[c].classList.add("winner");
+
+          const winnerName = board[a] === "X" ? "🎈 Bubble" : (mode === "pvc" ? "🤖 Bot" : "🧊 Frost");
+          statusEl.textContent = `${winnerName} wins!`;
+
+          gameOver = true;
+          scores[board[a]]++;
+          updateScore();
+          return true;
+        }
+      }
+
+      if (board.every(cell => cell)) {
+        statusEl.textContent = "💥 It's a stalemate!";
+        scores.draws++;
+        gameOver = true;
+        updateScore();
+        return true;
+      }
+
+      return false;
+    }
+
+    function updateScore() {
+      scoreXEl.textContent = scores.X;
+      scoreOEl.textContent = scores.O;
+      scoreDrawsEl.textContent = scores.draws;
+    }
+
+    function getBestMove() {
+      let bestScore = -Infinity;
+      let move;
+
+      for (let i = 0; i < board.length; i++) {
+        if (board[i] === "") {
+          board[i] = "O";
+          let score = minimax(board, 0, false);
+          board[i] = "";
+          if (score > bestScore) {
+            bestScore = score;
+            move = i;
+          }
+        }
+      }
+
+      return move;
+    }
+
+    function minimax(board, depth, isMaximizing) {
+      const winner = getWinnerMini(board);
+      if (winner !== null) {
+        if (winner === "O") return 10 - depth;
+        else if (winner === "X") return depth - 10;
+        else return 0;
+      }
+
+      if (isMaximizing) {
+        let best = -Infinity;
+        for (let i = 0; i < board.length; i++) {
+          if (board[i] === "") {
+            board[i] = "O";
+            best = Math.max(best, minimax(board, depth + 1, false));
+            board[i] = "";
+          }
+        }
+        return best;
+      } else {
+        let best = Infinity;
+        for (let i = 0; i < board.length; i++) {
+          if (board[i] === "") {
+            board[i] = "X";
+            best = Math.min(best, minimax(board, depth + 1, true));
+            board[i] = "";
+          }
+        }
+        return best;
+      }
+    }
+
+    function getWinnerMini(tempBoard) {
+      for (const [a, b, c] of winningCombos) {
+        if (tempBoard[a] && tempBoard[a] === tempBoard[b] && tempBoard[a] === tempBoard[c]) {
+          return tempBoard[a];
+        }
+      }
+
+      if (tempBoard.every(cell => cell)) return "draw";
+      return null;
+    }
+
+    themeToggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      isDark = !isDark;
+      themeToggle.innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+    });
+
+    startGame();
+  </script>
+</body>
+</html>
